@@ -5,11 +5,11 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProductVersion>9.0.30729</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{89DB7429-40E8-4D5F-B560-64B59CEE4FC0}</ProjectGuid>
+    <ProjectGuid>{80606E40-6482-48EF-89B0-3549650EDF9A}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Tests.NHibernate.Spatial</RootNamespace>
-    <AssemblyName>Tests.NHibernate.Spatial.MySQL</AssemblyName>
+    <AssemblyName>Tests.NHibernate.Spatial.MsSqlSpatial</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <FileUpgradeFlags>
@@ -52,15 +52,7 @@
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="MySql.Data, Version=5.2.3.0, Culture=neutral, PublicKeyToken=c5687fc88969c44d, processorArchitecture=MSIL">
-      <HintPath>..\..\lib\net\3.5\MySql.Data.dll</HintPath>
-      <SpecificVersion>False</SpecificVersion>
-    </Reference>
-    <Reference Include="NetTopologySuite, Version=1.7.3.17298, Culture=neutral, PublicKeyToken=f580a05016ebada1, processorArchitecture=MSIL">
-      <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\lib\net\3.5\NetTopologySuite.dll</HintPath>
-    </Reference>
-    <Reference Include="NHibernate, Version=2.0.1.4000, Culture=neutral, PublicKeyToken=aa95f207798dfdb4, processorArchitecture=MSIL">
+    <Reference Include="NHibernate, Version=2.0.0.4001, Culture=neutral, PublicKeyToken=aa95f207798dfdb4, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\lib\net\3.5\NHibernate.dll</HintPath>
     </Reference>
@@ -80,11 +72,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="MySQLCriteriaFixture.cs" />
-    <Compile Include="MySQLConformanceItemsFixture.cs" />
-    <Compile Include="MySQLNtsTestCasesFixture.cs" />
-    <Compile Include="MySQLProjectionsFixture.cs" />
-    <Compile Include="MySQLSpatialQueriesFixture.cs" />
+    <Compile Include="MsSqlSpatialConformanceItemsFixture.cs" />
+    <Compile Include="MsSqlSpatialCriteriaFixture.cs" />
+    <Compile Include="MsSqlSpatialNtsTestCasesFixture.cs" />
+    <Compile Include="MsSqlSpatialProjectionsFixture.cs" />
+    <Compile Include="MsSqlSpatialSpatialQueriesFixture.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\Settings.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -94,25 +86,25 @@
     <Compile Include="TestConfiguration.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\NHibernate.Spatial.MySQL\NHibernate.Spatial.MySQL.vs2008.csproj">
-      <Project>{2A41BF37-ACD3-4F0B-804A-C8EC6517D51A}</Project>
-      <Name>NHibernate.Spatial.MySQL.vs2008</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\NHibernate.Spatial\NHibernate.Spatial.vs2008.csproj">
-      <Project>{50868B60-AC38-47E1-BD09-B4A4AA06B6F2}</Project>
-      <Name>NHibernate.Spatial.vs2008</Name>
-    </ProjectReference>
-    <ProjectReference Include="..\Tests.NHibernate.Spatial\Tests.NHibernate.Spatial.vs2008.csproj">
-      <Project>{CF7F3A94-6560-4A2D-9BCE-F2B5A9583ECA}</Project>
-      <Name>Tests.NHibernate.Spatial.vs2008</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="app.config" />
     <None Include="Properties\Settings.settings">
       <Generator>SettingsSingleFileGenerator</Generator>
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NHibernate.Spatial.MsSqlSpatial\NHibernate.Spatial.MsSqlSpatial.vs2010.csproj">
+      <Project>{3EDA0009-EB8E-4024-8154-6DE8707B7C05}</Project>
+      <Name>NHibernate.Spatial.MsSqlSpatial.vs2010</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\NHibernate.Spatial\NHibernate.Spatial.vs2010.csproj">
+      <Project>{50868B60-AC38-47E1-BD09-B4A4AA06B6F2}</Project>
+      <Name>NHibernate.Spatial.vs2010</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Tests.NHibernate.Spatial\Tests.NHibernate.Spatial.vs2010.csproj">
+      <Project>{CF7F3A94-6560-4A2D-9BCE-F2B5A9583ECA}</Project>
+      <Name>Tests.NHibernate.Spatial.vs2010</Name>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include="Microsoft.Net.Client.3.5">

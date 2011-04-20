@@ -5,11 +5,11 @@
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProductVersion>9.0.30729</ProductVersion>
     <SchemaVersion>2.0</SchemaVersion>
-    <ProjectGuid>{96CE5CA4-56B6-45CD-9581-736C8483CD7A}</ProjectGuid>
+    <ProjectGuid>{FE98272E-2526-471E-88C5-AD4518A447F9}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>Tests.NHibernate.Spatial</RootNamespace>
-    <AssemblyName>Tests.NHibernate.Spatial.MsSql2008</AssemblyName>
+    <AssemblyName>Tests.NHibernate.Spatial.PostGis</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <FileUpgradeFlags>
@@ -64,6 +64,10 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\lib\net\3.5\NHibernate.ByteCode.Castle.dll</HintPath>
     </Reference>
+    <Reference Include="Npgsql, Version=1.0.0.0, Culture=neutral, PublicKeyToken=5d8b90d52f46fda7, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\lib\net\3.5\Npgsql.dll</HintPath>
+    </Reference>
     <Reference Include="nunit.framework, Version=2.5.7.10213, Culture=neutral, PublicKeyToken=96d09a1eb7f44a77, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\lib\net\3.5\nunit.framework.dll</HintPath>
@@ -76,11 +80,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="MsSql2008ConformanceItemsFixture.cs" />
-    <Compile Include="MsSql2008CriteriaFixture.cs" />
-    <Compile Include="MsSql2008NtsTestCasesFixture.cs" />
-    <Compile Include="MsSql2008ProjectionsFixture.cs" />
-    <Compile Include="MsSql2008SpatialQueriesFixture.cs" />
+    <Compile Include="PostGisConformanceItemsFixture.cs" />
+    <Compile Include="PostGisCriteriaFixture.cs" />
+    <Compile Include="PostGisNtsTestCasesFixture.cs" />
+    <Compile Include="PostGisProjectionsFixture.cs" />
+    <Compile Include="PostGisSpatialQueriesFixture.cs" />
+    <Compile Include="PostGisTestsUtil.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Properties\Settings.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -90,17 +95,17 @@
     <Compile Include="TestConfiguration.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\NHibernate.Spatial.MsSql2008\NHibernate.Spatial.MsSql2008.vs2008.csproj">
-      <Project>{EAC092D9-6D47-4A30-803C-7A8583F99DFE}</Project>
-      <Name>NHibernate.Spatial.MsSql2008.vs2008</Name>
+    <ProjectReference Include="..\NHibernate.Spatial.PostGis\NHibernate.Spatial.PostGis.vs2010.csproj">
+      <Project>{0DD11B24-D42E-4345-A770-0CE755E17C82}</Project>
+      <Name>NHibernate.Spatial.PostGis.vs2010</Name>
     </ProjectReference>
-    <ProjectReference Include="..\NHibernate.Spatial\NHibernate.Spatial.vs2008.csproj">
+    <ProjectReference Include="..\NHibernate.Spatial\NHibernate.Spatial.vs2010.csproj">
       <Project>{50868B60-AC38-47E1-BD09-B4A4AA06B6F2}</Project>
-      <Name>NHibernate.Spatial.vs2008</Name>
+      <Name>NHibernate.Spatial.vs2010</Name>
     </ProjectReference>
-    <ProjectReference Include="..\Tests.NHibernate.Spatial\Tests.NHibernate.Spatial.vs2008.csproj">
+    <ProjectReference Include="..\Tests.NHibernate.Spatial\Tests.NHibernate.Spatial.vs2010.csproj">
       <Project>{CF7F3A94-6560-4A2D-9BCE-F2B5A9583ECA}</Project>
-      <Name>Tests.NHibernate.Spatial.vs2008</Name>
+      <Name>Tests.NHibernate.Spatial.vs2010</Name>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
