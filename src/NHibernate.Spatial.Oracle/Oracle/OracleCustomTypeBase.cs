@@ -21,6 +21,7 @@ namespace NHibernate.Spatial.Oracle
 			{
 				return isNull;
 			}
+            set { isNull = value; }
 		}
 
 		public static T Null

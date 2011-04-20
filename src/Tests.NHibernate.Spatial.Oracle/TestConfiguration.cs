@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using NHibernate.ByteCode.Castle;
 using NHibernate.Cfg;
 using NHibernate.Driver;
 using NHibernate.Spatial.Dialect;
@@ -13,11 +14,13 @@ namespace Tests.NHibernate.Spatial
 		{
 			IDictionary<string, string> properties = new Dictionary<string, string>();
 			properties[Environment.Dialect] = typeof(OracleSpatialDialect).AssemblyQualifiedName;
+            properties[Environment.ProxyFactoryFactoryClass] = typeof(ProxyFactoryFactory).AssemblyQualifiedName;
 			properties[Environment.ConnectionProvider] = typeof(DebugConnectionProvider).AssemblyQualifiedName;
 			properties[Environment.ConnectionDriver] = typeof(OracleDataClientDriver).AssemblyQualifiedName;
 			properties[Environment.ConnectionString] = Settings.Default.ConnectionString;
 			//properties[Environment.Hbm2ddlAuto] = "create-drop";
 			configuration.SetProperties(properties);
+
 		}
 
 	}

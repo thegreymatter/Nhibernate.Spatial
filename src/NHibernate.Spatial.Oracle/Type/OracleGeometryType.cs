@@ -25,6 +25,8 @@ namespace NHibernate.Spatial.Type
     /// <summary>
     /// 
     /// </summary>
+    /// 
+    [Serializable]
     public class OracleGeometryType : GeometryTypeBase<SdoGeometry>
     {
 		private static readonly NullableType sqlGeometryType = new SqlGeometryType();
@@ -58,9 +60,9 @@ namespace NHibernate.Spatial.Type
         protected override SdoGeometry FromGeometry(object value)
         {
             IGeometry geometry = value as IGeometry;
-            if (geometry == null)
+            if (geometry == null|| geometry.IsEmpty)
             {
-                return null;
+                return SdoGeometry.Null;
             }
             else
             {

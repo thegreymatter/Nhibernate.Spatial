@@ -18,383 +18,301 @@
 using System;
 using GeoAPI.Geometries;
 using GisSharpBlog.NetTopologySuite.Algorithm;
-using GisSharpBlog.NetTopologySuite.Geometries;
-using NHibernate.Spatial.MGeometries;
 
 namespace NHibernate.Spatial.Oracle
 {
-	internal class OracleGeometryWriter
-	{
-		//private readonly SqlGeometryBuilder _builder = new SqlGeometryBuilder();
+    internal class OracleGeometryWriter
+    {
+        private const int ElementTupleSize = 3;
 
-		public SdoGeometry Write(IGeometry geometry)
-		{
-			// TODO:
-			//_builder.SetSrid(geometry.SRID);
-			//WriteGeometry(geometry);
-			//return _builder.ConstructedGeometry;
-			return null;
-		}
+        public SdoGeometry Write(IGeometry geometry)
+        {
+            return WriteGeometry(geometry);
+        }
 
-		private SdoGeometry WriteGeometry(IGeometry geometry)
-		{
-			if (geometry is IPoint)
-			{
-				return WritePoint(geometry);
-			}
-			else if (geometry is ILineString)
-			{
-				return WriteLineString(geometry);
-			}
-			else if (geometry is IPolygon)
-			{
-				return WritePolygon(geometry);
-			}
-			else if (geometry is IMultiPoint)
-			{
-				return WriteMultiPoint(geometry);
-			}
-			else if (geometry is IMultiLineString)
-			{
-				return WriteMultiLineString(geometry);
-			}
-			else if (geometry is IMultiPolygon)
-			{
-				return WriteMultiPolygon(geometry);
-			}
-			else if (geometry is IGeometryCollection)
-			{
-				return WriteGeometryCollection(geometry);
-			}
-			return null;
-		}
+        private SdoGeometry WriteGeometry(IGeometry geometry)
+        {
+         
+            if (geometry is IPoint)
+            {
+                return WritePoint(geometry);
+            }
+            if (geometry is ILineString)
+            {
+                return WriteLineString(geometry);
+            }
+            if (geometry is IPolygon)
+            {
+                return WritePolygon(geometry);
+            }
+            if (geometry is IMultiPoint)
+            {
+                return WriteMultiPoint(geometry);
+            }
+            if (geometry is IMultiLineString)
+            {
+                return WriteMultiLineString(geometry);
+            }
+            if (geometry is IMultiPolygon)
+            {
+                return WriteMultiPolygon(geometry);
+            }
+            if (geometry is IGeometryCollection)
+            {
+                return WriteGeometryCollection(geometry);
+            }
+            return null;
+        }
 
-		private SdoGeometry WritePoint(IGeometry geometry)
-		{
-			int dim = GetCoordDimension(geometry);
-			int lrsDim = GetCoordinateLrsPosition(geometry);
-			bool isLrs = (lrsDim != 0);
-			double?[] coord = ConvertCoordinates(geometry.Coordinates, dim, isLrs);
-			SdoGeometry sdoGeometry = new SdoGeometry();
-			sdoGeometry.Sdo_Gtype = (decimal)SdoGeometryTypes.GTYPE.POINT;
-			sdoGeometry.Dimensionality = dim;
-			sdoGeometry.LRS = lrsDim;
-			sdoGeometry.Sdo_Srid = geometry.SRID;
-			//sdoGeometry.Point = new SdoPoint();
-			//sdoGeometry.Point.X = 0;
-			//sdoGeometry.Point.Y = 0;
-			//sdoGeometry.Point.Z = 0;
-			sdoGeometry.ElemArray = new decimal[] { 1, (decimal)SdoGeometryTypes.ETYPE_SIMPLE.POINT, 1 };
-			sdoGeometry.OrdinatesArrayOfDoubles = coord;
-			return sdoGeometry;
-		}
+        private SdoGeometry WritePoint(IGeometry geometry)
+        {
+            int dimension = GetGeometryDimension(geometry);
+            double[] coord = ConvertCoordinates(geometry.Coordinates, dimension);
 
-		private SdoGeometry WriteLineString(IGeometry geometry)
-		{
-			int dim = GetCoordDimension(geometry);
-			int lrsPos = GetCoordinateLrsPosition(geometry);
-			bool isLrs = lrsPos > 0;
-			double?[] ordinates = ConvertCoordinates(geometry.Coordinates, dim, isLrs);
-			SdoGeometry sdoGeometry = new SdoGeometry();
-			sdoGeometry.Sdo_Gtype = (decimal)SdoGeometryTypes.GTYPE.LINE;
-			sdoGeometry.Dimensionality = dim;
-			sdoGeometry.LRS = lrsPos;
-			sdoGeometry.Sdo_Srid = geometry.SRID;
-			sdoGeometry.ElemArray = new decimal[] { 0, 1, (decimal)ElementType.LINE_STRAITH_SEGMENTS, 0 };
-			sdoGeometry.OrdinatesArrayOfDoubles = ordinates;
-			return sdoGeometry;
-		}
+            SdoGeometry sdoGeometry = new SdoGeometry();
+            sdoGeometry.GeometryType = (int)SdoGeometryTypes.GTYPE.POINT;
+            sdoGeometry.Dimensionality = dimension;
+            sdoGeometry.LRS = 0;
+            sdoGeometry.Sdo_Srid = geometry.SRID;
+            sdoGeometry.ElemArrayOfInts = new [] { 1, (int)SdoGeometryTypes.ETYPE_SIMPLE.POINT, 1 };
+            sdoGeometry.OrdinatesArrayOfDoubles = coord;
+            sdoGeometry.PropertiesToGTYPE();
+            return sdoGeometry;
+        }
 
-		private SdoGeometry WriteMultiLineString(IGeometry geometry)
-		{
-			int dim = GetCoordDimension(geometry);
-			int lrsDim = GetCoordinateLrsPosition(geometry);
-			bool isLrs = (lrsDim != 0);
-			SdoGeometry sdoGeometry = new SdoGeometry();
-			sdoGeometry.Sdo_Gtype = (decimal)SdoGeometryTypes.GTYPE.MULTILINE;
-			sdoGeometry.Dimensionality = dim;
-			sdoGeometry.LRS = lrsDim;
-			sdoGeometry.Sdo_Srid = geometry.SRID;
-			decimal[] info = new decimal[geometry.NumGeometries * 3];
-			int oordinatesOffset = 1;
-			double?[] ordinates = new double?[] { };
-			for (int i = 0; i < geometry.NumGeometries; i++)
-			{
-				info[i + 0] = oordinatesOffset;
-				info[i + 1] = (decimal)ElementType.LINE_STRAITH_SEGMENTS;
-				info[i + 2] = 0;
-				ordinates = ConvertAddCoordinates(ordinates, geometry.GetGeometryN(i).Coordinates, dim, isLrs);
-				oordinatesOffset = ordinates.Length + 1;
-			}
-			sdoGeometry.ElemArray = info;
-			sdoGeometry.OrdinatesArrayOfDoubles = ordinates;
-			return sdoGeometry;
-		}
+        private SdoGeometry WriteLineString(IGeometry geometry)
+        {
+            int dimension = GetGeometryDimension(geometry);
+            double[] ordinates = ConvertCoordinates(geometry.Coordinates, dimension);
+            SdoGeometry sdoGeometry = new SdoGeometry();
+            sdoGeometry.GeometryType = (int)SdoGeometryTypes.GTYPE.LINE;
+            sdoGeometry.Dimensionality = dimension;
+            sdoGeometry.LRS = 0;
+            sdoGeometry.Sdo_Srid = geometry.SRID;
+            sdoGeometry.ElemArrayOfInts = new[] { 1, (int)SdoGeometryTypes.ETYPE_SIMPLE.LINE, 1 };
+            sdoGeometry.OrdinatesArrayOfDoubles = ordinates;
+            sdoGeometry.PropertiesToGTYPE();
+            return sdoGeometry;
+        }
 
-		private SdoGeometry WriteMultiPoint(IGeometry geometry)
-		{
-			int dim = GetCoordDimension(geometry);
-			int lrsDim = GetCoordinateLrsPosition(geometry);
-			bool isLrs = (lrsDim != 0);
-			SdoGeometry sdoGeometry = new SdoGeometry();
-			sdoGeometry.Sdo_Gtype = (decimal)SdoGeometryTypes.GTYPE.MULTIPOINT;
-			sdoGeometry.Dimensionality = dim;
-			sdoGeometry.LRS = lrsDim;
-			sdoGeometry.Sdo_Srid = geometry.SRID;
+        private SdoGeometry WriteMultiLineString(IGeometry geometry)
+        {
+            int dimension = GetGeometryDimension(geometry);
+            SdoGeometry sdoGeometry = new SdoGeometry();
+            sdoGeometry.GeometryType = (int)SdoGeometryTypes.GTYPE.MULTILINE;
+            sdoGeometry.Dimensionality = dimension;
+            sdoGeometry.LRS = 0;
+            sdoGeometry.Sdo_Srid = geometry.SRID;
+            int[] elements = new int[geometry.NumGeometries * ElementTupleSize];
+            int oordinatesOffset = 1;
+            double[] ordinates = new double[] { };
+            for (int i = 0; i < geometry.NumGeometries; i++)
+            {
+                elements[i * ElementTupleSize + 0] = oordinatesOffset;
+                elements[i * ElementTupleSize + 1] = (int)SdoGeometryTypes.ETYPE_SIMPLE.LINE;
+                elements[i * ElementTupleSize + 2] = 1;
+                ordinates = AppendCoordinates(ordinates, ConvertCoordinates(geometry.GetGeometryN(i).Coordinates, dimension));
+                oordinatesOffset = ordinates.Length + 1;
+            }
+            sdoGeometry.ElemArrayOfInts = elements;
+            sdoGeometry.OrdinatesArrayOfDoubles = ordinates;
+            sdoGeometry.PropertiesToGTYPE();
+            return sdoGeometry;
+        }
 
-			decimal[] info = new decimal[geometry.NumPoints * 3];
-			int oordinatesOffset = 1;
-			double?[] ordinates = new double?[0];
-			for (int i = 0; i < geometry.NumPoints; i++)
-			{
-				//info.setElement(i, oordinatesOffset, ElementType.POINT, 0);
-				info[i + 0] = oordinatesOffset;
-				info[i + 1] = (decimal)ElementType.POINT;
-				info[i + 2] = 0;
-				ordinates = ConvertAddCoordinates(ordinates, geometry.GetGeometryN(i).Coordinates, dim, isLrs);
-				oordinatesOffset = ordinates.Length + 1;
-			}
-			sdoGeometry.ElemArray = info;
-			sdoGeometry.OrdinatesArrayOfDoubles = ordinates;
-			return sdoGeometry;
-		}
+        private SdoGeometry WriteMultiPoint(IGeometry geometry)
+        {
+            int dimension = GetGeometryDimension(geometry);
+            SdoGeometry sdoGeometry = new SdoGeometry();
+            sdoGeometry.GeometryType = (int)SdoGeometryTypes.GTYPE.MULTIPOINT;
+            sdoGeometry.Dimensionality = dimension;
+            sdoGeometry.LRS = 0;
+            sdoGeometry.Sdo_Srid = geometry.SRID;
 
-		private SdoGeometry WritePolygon(IGeometry geometry)
-		{
-			int dim = GetCoordDimension(geometry);
-			int lrsPos = GetCoordinateLrsPosition(geometry);
-			SdoGeometry sdoGeometry = new SdoGeometry();
-			sdoGeometry.Sdo_Gtype = (decimal)SdoGeometryTypes.GTYPE.POLYGON;
-			sdoGeometry.Dimensionality = dim;
-			sdoGeometry.LRS = lrsPos;
-			sdoGeometry.Sdo_Srid = geometry.SRID;
-			AddPolygon(sdoGeometry, geometry as IPolygon);
-			return sdoGeometry;
-		}
+            int[] elements = new int[geometry.NumPoints * ElementTupleSize];
+            int oordinatesOffset = 1;
+            double[] ordinates = new double[0];
+            for (int i = 0; i < geometry.NumPoints; i++)
+            {
+                elements[i * ElementTupleSize + 0] = oordinatesOffset;
+                elements[i * ElementTupleSize + 1] = (int)SdoGeometryTypes.ETYPE_SIMPLE.POINT;
+                elements[i * ElementTupleSize + 2] = 0;
+                ordinates = AppendCoordinates(ordinates, ConvertCoordinates(geometry.GetGeometryN(i).Coordinates, dimension));
+                oordinatesOffset = ordinates.Length + 1;
+            }
+            sdoGeometry.ElemArrayOfInts = elements;
+            sdoGeometry.OrdinatesArrayOfDoubles = ordinates;
+            sdoGeometry.PropertiesToGTYPE();
+            return sdoGeometry;
+        }
 
-		private SdoGeometry WriteMultiPolygon(IGeometry geometry)
-		{
-			int dim = GetCoordDimension(geometry);
-			int lrsPos = GetCoordinateLrsPosition(geometry);
-			SdoGeometry sdoGeometry = new SdoGeometry();
-			sdoGeometry.Sdo_Gtype = (decimal)SdoGeometryTypes.GTYPE.MULTIPOLYGON;
-			sdoGeometry.Dimensionality = dim;
-			sdoGeometry.LRS = lrsPos;
-			sdoGeometry.Sdo_Srid = geometry.SRID;
-			for (int i = 0; i < geometry.NumGeometries; i++)
-			{
-				try
-				{
-					IPolygon pg = (IPolygon)geometry.GetGeometryN(i);
-					AddPolygon(sdoGeometry, pg);
-				}
-				catch (Exception e)
-				{
-					throw new ApplicationException(
-						"Found geometry that was not a geometry in MultiPolygon");
-				}
-			}
-			return sdoGeometry;
-		}
+        private SdoGeometry WritePolygon(IGeometry geometry)
+        {
+            int dimension = GetGeometryDimension(geometry);
+            SdoGeometry sdoGeometry = new SdoGeometry();
+            sdoGeometry.GeometryType = (int)SdoGeometryTypes.GTYPE.POLYGON;
+            sdoGeometry.Dimensionality = dimension;
+            sdoGeometry.LRS = 0;
+            sdoGeometry.Sdo_Srid = geometry.SRID;
+            AddPolygon(sdoGeometry, geometry as IPolygon, dimension);
+            sdoGeometry.PropertiesToGTYPE();
+            return sdoGeometry;
+        }
 
-		private SdoGeometry WriteGeometryCollection(IGeometry geometry)
-		{
-			SdoGeometry[] sdoElements = new SdoGeometry[geometry.NumGeometries];
-			for (int i = 0; i < geometry.NumGeometries; i++)
-			{
-				IGeometry sdoGeometry = geometry.GetGeometryN(i);
-				sdoElements[i] = WriteGeometry(sdoGeometry);
-			}
-			return SdoGeometry.Join(sdoElements);
-		}
+        private SdoGeometry WriteMultiPolygon(IGeometry geometry)
+        {
+            int dimension = GetGeometryDimension(geometry);
+            SdoGeometry sdoGeometry = new SdoGeometry();
+            sdoGeometry.GeometryType = (int)SdoGeometryTypes.GTYPE.MULTIPOLYGON;
+            sdoGeometry.Dimensionality = dimension;
+            sdoGeometry.LRS = 0;
+            sdoGeometry.Sdo_Srid = geometry.SRID;
+            for (int i = 0; i < geometry.NumGeometries; i++)
+            {
+                try
+                {
+                    IPolygon pg = (IPolygon)geometry.GetGeometryN(i);
+                    AddPolygon(sdoGeometry, pg, dimension);
+                }
+                catch (Exception e)
+                {
+                    throw new ApplicationException(
+                        "Found geometry that was not a Polygon in MultiPolygon", e);
+                }
+            }
+            sdoGeometry.PropertiesToGTYPE();
+            return sdoGeometry;
+        }
 
-		private void AddPolygon(SdoGeometry sdoGeometry, IPolygon polygon)
-		{
-			int numInteriorRings = polygon.NumInteriorRings;
-			decimal[] info = new decimal[(numInteriorRings + 1) * 3];
-			int ordinatesOffset = 1;
-			if (sdoGeometry.OrdinatesArray != null)
-			{
-				ordinatesOffset = sdoGeometry.OrdinatesArray.Length + 1;
-			}
-			double?[] ordinates = new double?[] { };
-			for (int i = 0; i < info.Length; i++)
-			{
-				ElementType et;
-				ICoordinate[] coords;
-				if (i == 0)
-				{
-					et = ElementType.EXTERIOR_RING_STRAIGHT_SEGMENTS;
-					coords = polygon.ExteriorRing.Coordinates;
-					if (!CGAlgorithms.IsCCW(coords))
-					{
-						coords = ReverseRing(coords);
-					}
-				}
-				else
-				{
-					et = ElementType.INTERIOR_RING_STRAIGHT_SEGMENTS;
-					coords = polygon.InteriorRings[i - 1].Coordinates;
-					if (CGAlgorithms.IsCCW(coords))
-					{
-						coords = ReverseRing(coords);
-					}
-				}
-				//info.setElement(i, ordinatesOffset, et, 0);
-				info[i + 0] = ordinatesOffset;
-				info[i + 1] = (decimal)et;
-				info[i + 2] = 0;
-				ordinates = ConvertAddCoordinates(ordinates, coords, sdoGeometry.Dimensionality, sdoGeometry.LRS > 0);
-				ordinatesOffset = ordinates.Length + 1;
-			}
-			sdoGeometry.addElement(info);
-			sdoGeometry.AddOrdinates(ordinates);
-		}
+        private SdoGeometry WriteGeometryCollection(IGeometry geometry)
+        {
+            SdoGeometry[] sdoElements = new SdoGeometry[geometry.NumGeometries];
+            for (int i = 0; i < geometry.NumGeometries; i++)
+            {
+                IGeometry sdoGeometry = geometry.GetGeometryN(i);
+                sdoElements[i] = WriteGeometry(sdoGeometry);
+            }
+            ;
+            return SdoGeometry.Join(sdoElements);
+        }
 
-		// reverses ordinates in a coordinate array in-place
-		private ICoordinate[] ReverseRing(ICoordinate[] ar)
-		{
-			for (int i = 0; i < ar.Length / 2; i++)
-			{
-				ICoordinate cs = ar[i];
-				ar[i] = ar[ar.Length - 1 - i];
-				ar[ar.Length - 1 - i] = cs;
-			}
-			return ar;
-		}
+        private void AddPolygon(SdoGeometry sdoGeometry, IPolygon polygon, int dimention)
+        {
+            int numInteriorRings = polygon.NumInteriorRings;
+            int[] elements = new int[(numInteriorRings + 1) * ElementTupleSize];
+            int ordinatesOffset = 1;
+            ICoordinate[] coords;
+            if (sdoGeometry.OrdinatesArray != null && sdoGeometry.OrdinatesArray.Length>0)
+            {
+                ordinatesOffset = sdoGeometry.OrdinatesArray.Length+1;
+            }
+            double[] ordinates = new double[] { };
 
-		private double?[] ConvertAddCoordinates(double?[] ordinates,
-		                                        ICoordinate[] coordinates, int dim, bool isLrs)
-		{
-			double?[] no = ConvertCoordinates(coordinates, dim, isLrs);
-			double?[] newordinates = new double?[ordinates.Length + no.Length];
-			Array.Copy(ordinates, 0, newordinates, 0, ordinates.Length);
-			Array.Copy(no, 0, newordinates, ordinates.Length, no.Length);
-			return newordinates;
-		}
+            //addExterior
+            elements[0] = ordinatesOffset;
+            elements[1] = (int) SdoGeometryTypes.ETYPE_SIMPLE.POLYGON_EXTERIOR;
+            elements[2] = 1;
+            coords = polygon.ExteriorRing.Coordinates;
+            if (!CGAlgorithms.IsCCW(coords))
+            {
+                coords = ReverseRing(coords);
+            }
+            ordinates = AppendCoordinates(ordinates, ConvertCoordinates(coords, dimention));
+            ordinatesOffset += ordinates.Length ;
+            //add holes
+            for (int i = 0; i < numInteriorRings; i++)
+            {
 
-		/**
-		 * Convert the coordinates to a double array for purposes of persisting them
-		 * to the database. Note that Double.NaN values are to be converted to null
-		 * values in the array.
-		 * 
-		 * @param coordinates
-		 *            Coordinates to be converted to the array
-		 * @param dim
-		 *            Coordinate dimension
-		 * @param isLrs
-		 *            true if the coordinates contain measures
-		 * @return
-		 */
-		private double?[] ConvertCoordinates(ICoordinate[] coordinates, int dim, bool isLrs)
-		{
-			if (dim > 4)
-			{
-				throw new ArgumentException("Dim parameter value cannot be greater than 4");
-			}
-			double?[] converted = new double?[coordinates.Length * dim];
-			for (int i = 0; i < coordinates.Length; i++)
-			{
-				ICoordinate c = coordinates[i];
-				MCoordinate cm = c as MCoordinate;
-
-				// set the X and Y values
-				converted[i * dim] = ToDouble(c.X);
-				converted[i * dim + 1] = ToDouble(c.Y);
-				if (dim == 3)
-				{
-					converted[i * dim + 2] = isLrs ? ToDouble(cm.M) : ToDouble(c.Z);
-					converted[i * dim + 2] = ToDouble(c.Z);
-				}
-				else if (dim == 4)
-				{
-					converted[i * dim + 2] = ToDouble(c.Z);
-					converted[i * dim + 3] = ToDouble(cm.M);
-				}
-			}
-			return converted;
-		}
-
-		/**
-		 * This method converts a double primitive to a Double wrapper instance, but
-		 * treats a Double.NaN value as null.
-		 * 
-		 * @param d
-		 *            the value to be converted
-		 * @return A Double instance of d, Null if the parameter is Double.NaN
-		 */
-		private double? ToDouble(double d)
-		{
-			return double.IsNaN(d) ? (double?)null : d;
-		}
-
-		/**
-		 * Returns the lrs measure position for purposes of building the gType for
-		 * an oracle geometry. At this point and time, I'll have to assume that the
-		 * measure is always put at the end of the ordinate tuple, even though it
-		 * technically wouldn't have to. This method bases its decision on whether
-		 * the first coordinate has a measure value, as measure are required for the
-		 * very first and last measure in a CoordinateSequence. If there is no
-		 * measure value, 0 is returned.
-		 * 
-		 * @param geom
-		 *            and instance of the Geometry class from which the lrs position
-		 *            is being extracted.
-		 * @return the lrs position for the SdoGeometry.SDO_GTYPE
-		 */
-		private int GetCoordinateLrsPosition(IGeometry geom)
-		{
-			MCoordinate c = geom.Coordinate as MCoordinate;
-			int measurePos = 0;
-			if (c != null && !Double.IsNaN(c.M))
-			{
-				measurePos = (Double.IsNaN(c.Z)) ? 3 : 4;
-			}
-			return measurePos;
-		}
-
-		public SdoGeometry ConstructedGeometry
-		{
-			get
-			{
-				//return _builder.ConstructedGeometry;
-				return null;
-			}
-		}
-
-		/**
-		 * Return the dimension required for building the gType in the SdoGeometry
-		 * object. Has support for LRS type geometries.
-		 * 
-		 * @param geom
-		 *            and instance of the Geometry class from which the dimension is
-		 *            being extracted.
-		 * @return number of dimensions for purposes of creating the
-		 *         SdoGeometry.SDO_GTYPE
-		 */
-		private int GetCoordDimension(IGeometry geom)
-		{
-			// This is awkward, I have to create an MCoordinate to discover what the
-			// dimension is.
-			// This shall be cleaner if MCoordinate.GetOrdinate(int ordinateIndex)
-			// is moved to the Coordinate class
-			ICoordinate c = geom.Coordinate;
-			int d = 0;
-			if (c != null)
-			{
-				if (!Double.IsNaN(c.X))
-					d++;
-				if (!Double.IsNaN(c.Y))
-					d++;
-				if (!Double.IsNaN(c.Z))
-					d++;
-				if (c is MCoordinate && !Double.IsNaN((c as MCoordinate).M))
-					d++;
-			}
-			return d;
-		}
+                coords = polygon.InteriorRings[i].Coordinates;
+                if (CGAlgorithms.IsCCW(coords))
+                {
+                    coords = ReverseRing(coords);
+                }
 
 
- 	 
-	}
+                elements[(i + 1) * ElementTupleSize + 0] = ordinatesOffset;
+                elements[(i + 1) * ElementTupleSize + 1] = (int)SdoGeometryTypes.ETYPE_SIMPLE.POLYGON_INTERIOR;
+                elements[(i + 1) * ElementTupleSize + 2] = 1;
+                ordinates = AppendCoordinates(ordinates, ConvertCoordinates(coords, dimention));
+                ordinatesOffset = ordinates.Length + 1;
+            }
+            sdoGeometry.AddElement(elements);
+            sdoGeometry.AddOrdinates(ordinates);
+        }
+
+        private ICoordinate[] ReverseRing(ICoordinate[] coordinates)
+        {
+            for (int i = 0; i < coordinates.Length / 2; i++)
+            {
+                ICoordinate cs = coordinates[i];
+                coordinates[i] = coordinates[coordinates.Length - 1 - i];
+                coordinates[coordinates.Length - 1 - i] = cs;
+            }
+            return coordinates;
+        }
+
+        private double[] AppendCoordinates(double[] ordinates,
+                                        double[] appendedOrdinates)
+        {
+
+            double[] newordinates = new double[ordinates.Length + appendedOrdinates.Length];
+            Array.Copy(ordinates, 0, newordinates, 0, ordinates.Length);
+            Array.Copy(appendedOrdinates, 0, newordinates, ordinates.Length, appendedOrdinates.Length);
+            return newordinates;
+        }
+
+        /// <summary>
+        /// Convert the coordinates to a double array for purposes of persisting them
+        /// to the database.
+        /// </summary>
+        /// <param name="coordinates"></param>
+        /// <param name="dim"></param>
+        /// <returns></returns>
+        private double[] ConvertCoordinates(ICoordinate[] coordinates, int dim)
+        {
+            if (dim > 3)
+            {
+                throw new ArgumentException("Dim parameter value cannot be greater than 3");
+            }
+            double[] coordinateArray = new double[coordinates.Length * dim];
+            for (int i = 0; i < coordinates.Length; i++)
+            {
+                ICoordinate coordinate = coordinates[i];
+
+                // set the X and Y values
+                coordinateArray[i * dim] = coordinate.X;
+                coordinateArray[i * dim + 1] = coordinate.Y;
+                if (dim == 3)
+                {
+                    coordinateArray[i * dim + 2] = coordinate.Z;
+
+                }
+
+            }
+            return coordinateArray;
+        }
+
+        /// <summary>
+        /// Return the dimension required for building the gType in the SdoGeometry
+        /// object. Has support for LRS type geometries.
+        /// </summary>
+        /// <param name="geom"></param>
+        /// <returns></returns>
+        private int GetGeometryDimension(IGeometry geom)
+        {
+            ICoordinate coordinate = geom.Coordinate;
+            int dimension = 0;
+            if (coordinate != null)
+            {
+                if (!Double.IsNaN(coordinate.X))
+                    dimension++;
+                if (!Double.IsNaN(coordinate.Y))
+                    dimension++;
+                if (!Double.IsNaN(coordinate.Z))
+                    dimension++;
+
+            }
+            return dimension;
+        }
+    }
 }

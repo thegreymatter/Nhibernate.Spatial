@@ -3,26 +3,26 @@ using Oracle.DataAccess.Types;
 
 namespace NHibernate.Spatial.Oracle
 {
-	public enum ElementType
-	{
-		UNSUPPORTED = 0,
-		POINT = 1,
-		ORIENTATION = 2,
-		POINT_CLUSTER = 3,
-		LINE_STRAITH_SEGMENTS = 4,
-		LINE_ARC_SEGMENTS = 5,
-		INTERIOR_RING_STRAIGHT_SEGMENTS = 6,
-		EXTERIOR_RING_STRAIGHT_SEGMENTS = 7,
-		INTERIOR_RING_ARC_SEGMENTS = 8,
-		EXTERIOR_RING_ARC_SEGMENTS = 9,
-		INTERIOR_RING_RECT = 10,
-		EXTERIOR_RING_RECT = 11,
-		INTERIOR_RING_CIRCLE = 12,
-		EXTERIOR_RING_CIRCLE = 13,
-		COMPOUND_LINE = 14,
-		COMPOUND_EXTERIOR_RING = 15,
-		COMPOUND_INTERIOR_RING = 16
-	}
+    //public enum ElementType
+    //{
+    //    UNSUPPORTED = 0,
+    //    POINT = 1,
+    //    ORIENTATION = 2,
+    //    POINT_CLUSTER = 3,
+    //    LINE_STRAITH_SEGMENTS = 4,
+    //    LINE_ARC_SEGMENTS = 5,
+    //    INTERIOR_RING_STRAIGHT_SEGMENTS = 6,
+    //    EXTERIOR_RING_STRAIGHT_SEGMENTS = 7,
+    //    INTERIOR_RING_ARC_SEGMENTS = 8,
+    //    EXTERIOR_RING_ARC_SEGMENTS = 9,
+    //    INTERIOR_RING_RECT = 10,
+    //    EXTERIOR_RING_RECT = 11,
+    //    INTERIOR_RING_CIRCLE = 12,
+    //    EXTERIOR_RING_CIRCLE = 13,
+    //    COMPOUND_LINE = 14,
+    //    COMPOUND_EXTERIOR_RING = 15,
+    //    COMPOUND_INTERIOR_RING = 16
+    //}
 
 	public static class SdoGeometryTypes
 	{
@@ -35,7 +35,7 @@ namespace NHibernate.Spatial.Oracle
 		{
 			POINT = 1, 
 			LINE = 2, 
-			POLYGON = 3, 
+		
 			POLYGON_EXTERIOR = 1003, 
 			POLYGON_INTERIOR = 2003
 		}
@@ -85,6 +85,12 @@ namespace NHibernate.Spatial.Oracle
 	public class SdoGeometry : OracleCustomTypeBase<SdoGeometry>
 	{
 
+        public SdoGeometry():base()
+        {
+            elemArray = new decimal[0];
+            ordinatesArray = new decimal[0];
+        }
+
 		private enum OracleObjectColumns { SDO_GTYPE, SDO_SRID, SDO_POINT, SDO_ELEM_INFO, SDO_ORDINATES }
 
 		private decimal? sdo_Gtype;
@@ -122,6 +128,11 @@ namespace NHibernate.Spatial.Oracle
 			get { return elemArray; }
 			set { elemArray = value; }
 		}
+
+	    public int NumElements
+	    {
+	        get { return elemArray.Length/3; }
+	    }
 
 		private decimal[] ordinatesArray;
 
@@ -179,21 +190,21 @@ namespace NHibernate.Spatial.Oracle
 			}
 		}
 
-		public double?[] OrdinatesArrayOfDoubles
+		public double[] OrdinatesArrayOfDoubles
 		{
 			get
 			{
-				return Array.ConvertAll<decimal, double?>(
+				return Array.ConvertAll<decimal, double>(
 					this.ordinatesArray,
-					delegate(decimal x) { return (double?)Convert.ToDouble(x); });
+					delegate(decimal x) { return Convert.ToDouble(x); });
 			}
 			set
 			{
 				if (value != null)
 				{
-					this.ordinatesArray = Array.ConvertAll<double?, decimal>(
+					this.ordinatesArray = Array.ConvertAll<double, decimal>(
 						value,
-						delegate(double? x) { return Convert.ToDecimal(x); });
+						delegate(double x) { return Convert.ToDecimal(x); });
 				}
 				else
 				{
@@ -223,7 +234,13 @@ namespace NHibernate.Spatial.Oracle
 			set { _GeometryType = value; }
 		}
 
-		public int PropertiesFromGTYPE()
+	    public int ZDimension
+	    {
+	        get { return 3; }
+	    
+	    }
+
+	    public int PropertiesFromGTYPE()
 		{
 			if ((int)this.sdo_Gtype != 0)
 			{
@@ -251,37 +268,39 @@ namespace NHibernate.Spatial.Oracle
 
 		#region Ported from Hibernate Spatial SDOGeometryType.java
 
-		public void addElement(decimal[] element)
+		public void AddElement(int[] element)
 		{
-			decimal[] newTriplets = new decimal[this.elemArray.Length + element.Length];
-			Array.Copy(this.elemArray, 0, newTriplets, 0, this.elemArray.Length);
+			int[] newTriplets = new int[this.elemArray.Length + element.Length];
+			Array.Copy(this.ElemArrayOfInts, 0, newTriplets, 0, this.elemArray.Length);
 			Array.Copy(element, 0, newTriplets, this.elemArray.Length, element.Length);
-			this.elemArray = newTriplets;
+			this.ElemArrayOfInts = newTriplets;
 		}
 
-		//public void addOrdinates(double?[] ordinatesToAdd)
-		//{
-		//    decimal[] newOrdinates = new decimal[this.ordinatesArray.Length + ordinatesToAdd.Length];
-		//    Array.Copy(this.ordinatesArray, 0, newOrdinates, 0, this.ordinatesArray.Length);
-		//    Array.Copy(ordinatesToAdd, 0, newOrdinates, this.ordinatesArray.Length, ordinatesToAdd.Length);
-		//    this.ordinatesArray = newOrdinates;
-		//}
+        public void AddElement(decimal [] element)
+        {
+            decimal[] newTriplets = new decimal[this.elemArray.Length + element.Length];
+            Array.Copy(this.ElemArray, 0, newTriplets, 0, this.elemArray.Length);
+            Array.Copy(element, 0, newTriplets, this.elemArray.Length, element.Length);
+            this.ElemArray = newTriplets;
+        }
 
-		//private void addOrdinates(decimal[] ordinatesToAdd)
-		//{
-		//    decimal[] newOrdinates = new decimal[this.ordinatesArray.Length + ordinatesToAdd.Length];
-		//    Array.Copy(this.ordinatesArray, 0, newOrdinates, 0, this.ordinatesArray.Length);
-		//    Array.Copy(ordinatesToAdd, 0, newOrdinates, this.ordinatesArray.Length, ordinatesToAdd.Length);
-		//    this.ordinatesArray = newOrdinates;
-		//}
+		
 
-		public void AddOrdinates<T>(T[] ordinatesToAdd)
+		public void AddOrdinates(double[] ordinatesToAdd)
 		{
-			decimal[] newOrdinates = new decimal[this.ordinatesArray.Length + ordinatesToAdd.Length];
-			Array.Copy(this.ordinatesArray, 0, newOrdinates, 0, this.ordinatesArray.Length);
+			double [] newOrdinates = new double[this.ordinatesArray.Length + ordinatesToAdd.Length];
+			Array.Copy(this.OrdinatesArrayOfDoubles, 0, newOrdinates, 0, this.ordinatesArray.Length);
 			Array.Copy(ordinatesToAdd, 0, newOrdinates, this.ordinatesArray.Length, ordinatesToAdd.Length);
-			this.ordinatesArray = newOrdinates;
+			OrdinatesArrayOfDoubles = newOrdinates;
 		}
+
+        public void AddOrdinates(decimal [] ordinatesToAdd)
+        {
+            decimal [] newOrdinates = new decimal[this.ordinatesArray.Length + ordinatesToAdd.Length];
+            Array.Copy(this.OrdinatesArray, 0, newOrdinates, 0, this.ordinatesArray.Length);
+            Array.Copy(ordinatesToAdd, 0, newOrdinates, this.ordinatesArray.Length, ordinatesToAdd.Length);
+            OrdinatesArray = newOrdinates;
+        }
 
 		/**
 		* This joins an array of SDO_GEOMETRIES to a SDO_GEOMETRY of type
@@ -316,7 +335,7 @@ namespace NHibernate.Spatial.Oracle
 						//int shift = ordinatesOffset - element.getOrdinatesOffset(0);
 						int shift = ordinatesOffset - (int)element[0];
 						ShiftOrdinateOffset(element, shift);
-						sdoCollection.addElement(element);
+						sdoCollection.AddElement(element);
 						sdoCollection.AddOrdinates(ordinates);
 						ordinatesOffset += ordinates.Length;
 					}

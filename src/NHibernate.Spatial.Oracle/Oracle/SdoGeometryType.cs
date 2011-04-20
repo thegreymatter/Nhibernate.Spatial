@@ -77,12 +77,16 @@ namespace NHibernate.Spatial.Oracle
 
 		public override void Set(IDbCommand cmd, object value, int index)
 		{
-			object parameterValue = (value as INullable).IsNull ? DBNull.Value : value;
 
+            object parameterValue = value == null||(value as SdoGeometry).IsNull ? DBNull.Value : value;
+		    
 			OracleParameter oracleParameter = (OracleParameter)cmd.Parameters[index];
 			oracleParameter.OracleDbType = OracleDbType.Object;
 			oracleParameter.UdtTypeName = "MDSYS.SDO_GEOMETRY";
 			oracleParameter.Value = parameterValue;
 		}
+
+        
+
 	}
 }

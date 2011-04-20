@@ -17,568 +17,452 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Text;
 using GeoAPI.Geometries;
 using GisSharpBlog.NetTopologySuite.Geometries;
-using NHibernate.Spatial.MGeometries;
 
 namespace NHibernate.Spatial.Oracle
 {
-	internal class OracleGeometryReader
-	{
-		private readonly IGeometryFactory factory;
+    internal class OracleGeometryReader
+    {
+        private readonly IGeometryFactory _factory;
 
-		/// <summary>
-		/// Initialize reader with a standard <c>GeometryFactory</c>. 
-		/// </summary>
-		public OracleGeometryReader() : this(new GeometryFactory()) { }
+        private const int ElementTupleSize = 3;
+        /// <summary>
+        /// Initialize reader with a standard <c>GeometryFactory</c>. 
+        /// </summary>
+        public OracleGeometryReader() : this(new GeometryFactory()) { }
 
-		/// <summary>
-		/// Initialize reader with the given <c>GeometryFactory</c>.
-		/// </summary>
-		/// <param name="factory"></param>
-		public OracleGeometryReader(IGeometryFactory factory)
-		{
-			this.factory = factory;
-		}
+        /// <summary>
+        /// Initialize reader with the given <c>GeometryFactory</c>.
+        /// </summary>
+        /// <param name="factory"></param>
+        public OracleGeometryReader(IGeometryFactory factory)
+        {
+            _factory = factory;
+        }
 
-		/// <summary>
-		/// <c>Geometry</c> builder.
-		/// </summary>
-		protected virtual IGeometryFactory Factory
-		{
-			get { return factory; }
-		}
+        /// <summary>
+        /// <c>Geometry</c> builder.
+        /// </summary>
+        protected virtual IGeometryFactory Factory
+        {
+            get { return _factory; }
+        }
 
-		public IGeometry Read(SdoGeometry geometry)
-		{
-			return ReadGeometry(geometry);
-		}
+        public IGeometry Read(SdoGeometry geometry)
+        {
+            return ReadGeometry(geometry);
+        }
 
-		private IGeometry ReadGeometry(SdoGeometry sdoGeom)
-		{
-			int dim = sdoGeom.Dimensionality;
-			int lrsDim = sdoGeom.LRS;
+        private IGeometry ReadGeometry(SdoGeometry sdoGeom)
+        {
+            if (sdoGeom==null)
+            {
+                return null;
+            }
+            sdoGeom.PropertiesFromGTYPE();
+            if (sdoGeom.GeometryType == (int)SdoGeometryTypes.GTYPE.POINT)
+            {
+                return ReadPoint(sdoGeom);
+            }
+            if (sdoGeom.GeometryType == (int)SdoGeometryTypes.GTYPE.LINE)
+            {
+                return ReadLine(sdoGeom);
+            }
+            if (sdoGeom.GeometryType == (int)SdoGeometryTypes.GTYPE.POLYGON)
+            {
+                return ReadPolygon(sdoGeom);
+            }
 
-			if (sdoGeom.Sdo_Gtype.Value == (decimal)SdoGeometryTypes.GTYPE.POINT)
-			{
-				return ReadPoint(sdoGeom);
-			}
-			if (sdoGeom.Sdo_Gtype.Value == (decimal)SdoGeometryTypes.GTYPE.LINE)
-			{
-				return ReadLine(dim, lrsDim, sdoGeom);
-			}
-			if (sdoGeom.Sdo_Gtype.Value == (decimal)SdoGeometryTypes.GTYPE.POLYGON)
-			{
-				return ReadPolygon(dim, lrsDim, sdoGeom);
-			}
-			if (sdoGeom.Sdo_Gtype.Value == (decimal)SdoGeometryTypes.GTYPE.MULTIPOINT)
-			{
-				return ReadMultiPoint(dim, lrsDim, sdoGeom);
-			}
-			if (sdoGeom.Sdo_Gtype.Value == (decimal)SdoGeometryTypes.GTYPE.MULTILINE)
-			{
-				return ReadMultiLine(dim, lrsDim, sdoGeom);
-			}
-			if (sdoGeom.Sdo_Gtype.Value == (decimal)SdoGeometryTypes.GTYPE.MULTIPOLYGON)
-			{
-				return ReadMultiPolygon(dim, lrsDim, sdoGeom);
-			}
-			if (sdoGeom.Sdo_Gtype.Value == (decimal)SdoGeometryTypes.GTYPE.COLLECTION)
-			{
-				return ReadGeometryCollection(dim, lrsDim, sdoGeom);
-			}
+            if (sdoGeom.GeometryType == (int)SdoGeometryTypes.GTYPE.MULTIPOINT)
+            {
+                return ReadMultiPoint(sdoGeom);
+            }
+            if (sdoGeom.GeometryType == (int)SdoGeometryTypes.GTYPE.MULTILINE)
+            {
+                return ReadMultiLine(sdoGeom);
+            }
+            if (sdoGeom.GeometryType == (int)SdoGeometryTypes.GTYPE.MULTIPOLYGON)
+            {
+                return ReadMultiPolygon(sdoGeom);
+            }
+            if (sdoGeom.GeometryType == (int)SdoGeometryTypes.GTYPE.COLLECTION)
+            {
+                return ReadGeometryCollection(sdoGeom);
+            }
 
-			throw new ArgumentException("Type not supported: " + sdoGeom.Sdo_Gtype);
-		}
+            throw new ArgumentException(String.Format("Geometry with SDO Geometry Type {0} is not supported",+ sdoGeom.Sdo_Gtype));
+        }
 
-		private IGeometry ReadGeometryCollection(int dim, int lrsDim, SdoGeometry sdoGeom)
-		{
-			List<IGeometry> geometries = new List<IGeometry>();
-			foreach (SdoGeometry elemGeom in sdoGeom.getElementGeometries())
-			{
-				geometries.Add(ReadGeometry(elemGeom));
-			}
-			return factory.CreateGeometryCollection(geometries.ToArray());
-		}
-
-		private IPoint ReadPoint(SdoGeometry sdoGeom) {
-			decimal[] ordinates = sdoGeom.OrdinatesArray;
-			if (ordinates.Length == 0) {
-				if (sdoGeom.Dimensionality == 2) {
-					ordinates = new decimal[] { sdoGeom.Point.X.Value, sdoGeom.Point.Y.Value };
-				} else {
-					ordinates = new decimal[] { sdoGeom.Point.X.Value, sdoGeom.Point.Y.Value, sdoGeom.Point.Z.Value };
-				}
-			}
-			ICoordinateSequence cs = ConvertOrdinateArray(ordinates, sdoGeom);
-			IPoint point = factory.CreatePoint(cs);
-
-			point.SRID = (int)sdoGeom.Sdo_Srid;
-			return point;
-		}
-
-		private IMultiPoint ReadMultiPoint(int dim, int lrsDim, SdoGeometry sdoGeom)
-		{
-			Double[] ordinates = sdoGeom.getOrdinates().getOrdinateArray();
-			ICoordinateSequence cs = ConvertOrdinateArray(ordinates, sdoGeom);
-			IMultiPoint multipoint = factory.CreateMultiPoint(cs);
-			multipoint.SRID = (int)sdoGeom.Sdo_Srid;
-			return multipoint;
-		}
-
-		private ILineString ReadLine(int dim, int lrsDim, SdoGeometry sdoGeom)
-		{
-			bool lrs = sdoGeom.LRS > 0;
-			decimal[] info = sdoGeom.ElemArray;
-			ICoordinateSequence cs = null;
-
-			int i = 0;
-			while (i < info.Length)
-			{
-				if (info.getElementType(i).isCompound())
-				{
-					int numCompounds = info.getNumCompounds(i);
-					cs = Add(cs, GetCompoundCSeq(i + 1, i + numCompounds, sdoGeom));
-					i += 1 + numCompounds;
-				}
-				else
-				{
-					cs = Add(cs, GetElementCSeq(i, sdoGeom, false));
-					i++;
-				}
-			}
-
-			LineString ls =
-				lrs
-					? factory.createMLineString(cs)
-					: factory.CreateLineString(cs);
-			ls.SRID = (int)sdoGeom.Sdo_Srid;
-			return ls;
-		}
-
-		private IMultiLineString ReadMultiLine(int dim, int lrsDim,
-													SdoGeometry sdoGeom)
-		{
-			bool lrs = sdoGeom.LRS > 0;
-			decimal[] info = sdoGeom.ElemArray;
-			LineString[] lines =
-				lrs
-					? new MLineString[sdoGeom.ElemArray.Length]
-					: new LineString[sdoGeom.ElemArray.Length];
-			int i = 0;
-			while (i < info.Length)
-			{
-				ICoordinateSequence cs = null;
-				if (info.getElementType(i).isCompound())
-				{
-					int numCompounds = info.getNumCompounds(i);
-					cs = Add(cs, GetCompoundCSeq(i + 1, i + numCompounds, sdoGeom));
-					LineString line =
-						lrs
-							? factory.createMLineString(cs)
-							: factory.CreateLineString(cs);
-					lines[i] = line;
-					i += 1 + numCompounds;
-				}
-				else
-				{
-					cs = Add(cs, GetElementCSeq(i, sdoGeom, false));
-					LineString line = lrs ? (LineString)factory.createMLineString(cs) : factory.CreateLineString(cs);
-					lines[i] = line;
-					i++;
-				}
-			}
-
-			MultiLineString mls =
-				lrs
-					? factory.createMultiMLineString((MLineString[])lines)
-					: factory.CreateMultiLineString(lines);
-			mls.SRID = (int)sdoGeom.Sdo_Srid;
-			return mls;
-
-		}
-
-		private IGeometry ReadPolygon(int dim, int lrsDim, SdoGeometry sdoGeom) {
-			LinearRing shell = null;
-			LinearRing[] holes = new LinearRing[sdoGeom.getNumElements() - 1];
-			decimal[] info = sdoGeom.ElemArray;
-			int i = 0;
-			int idxInteriorRings = 0;
-			while (i < info.Length) {
-				ICoordinateSequence cs = null;
-				int numCompounds = 0;
-				if (info.getElementType(i).isCompound()) {
-					numCompounds = info.getNumCompounds(i);
-					cs = Add(cs, GetCompoundCSeq(i + 1, i + numCompounds, sdoGeom));
-				} else {
-					cs = Add(cs, GetElementCSeq(i, sdoGeom, false));
-				}
-				if (info.getElementType(i).isInteriorRing()) {
-					holes[idxInteriorRings] = factory
-						.CreateLinearRing(cs);
-					holes[idxInteriorRings].SRID = (int)sdoGeom.Sdo_Srid;
-					idxInteriorRings++;
-				} else {
-					shell = factory.CreateLinearRing(cs);
-					shell.SRID = (int)sdoGeom.Sdo_Srid;
-				}
-				i += 1 + numCompounds;
-			}
-			IPolygon polygon = factory.CreatePolygon(shell, holes);
-			polygon.SRID = (int)sdoGeom.Sdo_Srid;
-			return polygon;
-		}
-
-		private IMultiPolygon ReadMultiPolygon(int dim, int lrsDim, SdoGeometry sdoGeom)
-		{
-			List<ILinearRing> holes = new List<ILinearRing>();
-			List<IPolygon> polygons = new List<IPolygon>();
-			decimal[] info = sdoGeom.ElemArray;
-			ILinearRing shell = null;
-			int i = 0;
-			while (i < info.Length)
-			{
-				ICoordinateSequence cs = null;
-				int numCompounds = 0;
-				if (info.getElementType(i).isCompound())
-				{
-					numCompounds = info.getNumCompounds(i);
-					cs = Add(cs, GetCompoundCSeq(i + 1, i + numCompounds, sdoGeom));
-				}
-				else
-				{
-					cs = Add(cs, GetElementCSeq(i, sdoGeom, false));
-				}
-				if (info.getElementType(i).isInteriorRing())
-				{
-					ILinearRing lr = factory.CreateLinearRing(cs);
-					lr.SRID = (int)sdoGeom.Sdo_Srid;
-					holes.Add(lr);
-				}
-				else
-				{
-					if (shell != null)
-					{
-						IPolygon polygon = factory.CreatePolygon(shell, holes.ToArray());
-						polygon.SRID = (int)sdoGeom.Sdo_Srid;
-						polygons.Add(polygon);
-						shell = null;
-					}
-					shell = factory.CreateLinearRing(cs);
-					shell.SRID = (int)sdoGeom.Sdo_Srid;
-					holes = new List<ILinearRing>();
-				}
-				i += 1 + numCompounds;
-			}
-			if (shell != null)
-			{
-				IPolygon polygon = factory.CreatePolygon(shell, holes.ToArray());
-				polygon.SRID = (int)sdoGeom.Sdo_Srid;
-				polygons.Add(polygon);
-			}
-			IMultiPolygon multiPolygon = factory.CreateMultiPolygon(polygons.ToArray());
-			multiPolygon.SRID = (int)sdoGeom.Sdo_Srid;
-			return multiPolygon;
-		}
-
-		/**
-		 * Gets the ICoordinateSequence corresponding to a compound element.
-		 * 
-		 * @param idxFirst
-		 *            the first sub-element of the compound element
-		 * @param idxLast
-		 *            the last sub-element of the compound element
-		 * @param sdoGeom
-		 *            the SdoGeometry that holds the compound element.
-		 * @return
-		 */
-		private ICoordinateSequence GetCompoundCSeq(int idxFirst, int idxLast,
-													SdoGeometry sdoGeom)
-		{
-			ICoordinateSequence cs = null;
-			for (int i = idxFirst; i <= idxLast; i++)
-			{
-				// pop off the last element as it is added with the next
-				// coordinate sequence
-				if (cs != null && cs.Count > 0)
-				{
-					ICoordinate[] coordinates = cs.ToCoordinateArray();
-					ICoordinate[] newCoordinates = new ICoordinate[coordinates.Length - 1];
-					Array.Copy(coordinates, 0, newCoordinates, 0, coordinates.Length - 1);
-					cs = factory.CoordinateSequenceFactory.Create(newCoordinates);
-				}
-				cs = Add(cs, GetElementCSeq(i, sdoGeom, (i < idxLast)));
-			}
-			return cs;
-		}
-
-		/**
-	 * Gets the ICoordinateSequence corresponding to an element.
-	 * 
-	 * @param i
-	 * @param sdoGeom
-	 * @return
-	 */
-		private ICoordinateSequence GetElementCSeq(int i, SdoGeometry sdoGeom, bool hasNextSE) {
-			ElementType type = (ElementType)sdoGeom.ElemArray[i * 3 + 1];
-			Double[] elemOrdinates = ExtractOrdinatesOfElement(i, sdoGeom, hasNextSE);
-
-			ICoordinateSequence cs;
-
-			bool isCircle =
-				type == ElementType.INTERIOR_RING_CIRCLE ||
-				type == ElementType.EXTERIOR_RING_CIRCLE;
-
-			bool isArcSegment =
-				type == ElementType.LINE_ARC_SEGMENTS ||
-				type == ElementType.INTERIOR_RING_ARC_SEGMENTS ||
-				type == ElementType.EXTERIOR_RING_ARC_SEGMENTS;
-
-			bool isRect =
-				type == ElementType.INTERIOR_RING_RECT ||
-				type == ElementType.EXTERIOR_RING_RECT;
-
-			bool isExteriorRing =
-				type == ElementType.EXTERIOR_RING_STRAIGHT_SEGMENTS ||
-				type == ElementType.EXTERIOR_RING_ARC_SEGMENTS ||
-				type == ElementType.EXTERIOR_RING_RECT ||
-				type == ElementType.EXTERIOR_RING_CIRCLE;
+        #region multi Geometries
 
 
-			bool isStraightSegment =
-				type == ElementType.POINT ||
-				type == ElementType.LINE_STRAITH_SEGMENTS ||
-				type == ElementType.INTERIOR_RING_STRAIGHT_SEGMENTS ||
-				type == ElementType.EXTERIOR_RING_STRAIGHT_SEGMENTS;
+        private IGeometry ReadGeometryCollection(SdoGeometry sdoGeom)
+        {
+            return GeometryCollection.Empty;
+            //List<IGeometry> geometries = new List<IGeometry>();
+            //foreach (SdoGeometry elemGeom in sdoGeom.getElementGeometries())
+            //{
+            //    geometries.AppendCoordinateSequence(ReadGeometry(elemGeom));
+            //}
+            //return factory.CreateGeometryCollection(geometries.ToArray());
+        }
 
-			if (isStraightSegment)
-			{
-				cs = ConvertOrdinateArray(elemOrdinates, sdoGeom);
-			}
-			else if ( isArcSegment || isCircle)
-			{
-				ICoordinate[] linearized = Linearize(elemOrdinates, sdoGeom.Dimensionality, sdoGeom.LRS > 0, isCircle);
-				cs = factory.CoordinateSequenceFactory.Create(linearized);
-			}
-			else if (isRect)
-			{
-				cs = ConvertOrdinateArray(elemOrdinates, sdoGeom);
-				ICoordinate ll = cs.GetCoordinate(0);
-				ICoordinate ur = cs.GetCoordinate(1);
-				ICoordinate lr = new Coordinate(ur.X, ll.Y);
-				ICoordinate ul = new Coordinate(ll.X, ur.Y);
-				if (isExteriorRing)
-				{
-					cs = factory.CoordinateSequenceFactory.Create(new ICoordinate[] {ll, lr, ur, ul, ll});
-				}
-				else
-				{
-					cs = factory.CoordinateSequenceFactory.Create(new ICoordinate[] {ll, ul, ur, lr, ll});
-				}
-			}
-			else
-			{
-				throw new ApplicationException("Unexpected Element type in compound: " + type);
-			}
-			return cs;
-		}
+        private IMultiPoint ReadMultiPoint( SdoGeometry sdoGeom)
+        {
+            if (sdoGeom.OrdinatesArray.Length == 0)
+                return MultiPoint.Empty;
+            double[] ordinates = sdoGeom.OrdinatesArrayOfDoubles;
+            ICoordinateSequence cs = ConvertOrdinateArray(ordinates, sdoGeom.Dimensionality);
+            IMultiPoint multipoint = _factory.CreateMultiPoint(cs);
+            multipoint.SRID = (int)sdoGeom.Sdo_Srid;
+            return multipoint;
+        }
 
-		private ICoordinateSequence Add(ICoordinateSequence seq1,
-		                                ICoordinateSequence seq2) {
-			if (seq1 == null) {
-				return seq2;
-			}
-			if (seq2 == null) {
-				return seq1;
-			}
-			ICoordinate[] c1 = seq1.ToCoordinateArray();
-			ICoordinate[] c2 = seq2.ToCoordinateArray();
-			ICoordinate[] c3 = new Coordinate[c1.Length + c2.Length];
-			Array.Copy(c1, 0, c3, 0, c1.Length);
-			Array.Copy(c2, 0, c3, c1.Length, c2.Length);
-			return factory.CoordinateSequenceFactory.Create(c3);
-		                                }
+        private IMultiLineString ReadMultiLine(SdoGeometry sdoGeom)
+        {
 
-		private Double[] ExtractOrdinatesOfElement(int element, SdoGeometry sdoGeom, bool hasNextSE)
-		{
-			int start = (int)sdoGeom.ElemArray[element * 3];
-			if ((element * 3) < sdoGeom.ElemArray.Length - 1)
-			{
-				int end = (int)sdoGeom.ElemArray[(element + 1) * 3];
-				// if this is a subelement of a compound geometry,
-				// the last point is the first point of
-				// the next subelement.
-				if (hasNextSE)
-				{
-					end += sdoGeom.Dimensionality;
-				}
-				return sdoGeom.getOrdinates().getOrdinatesArray(start, end);
-			}
-			else
-			{
-				return sdoGeom.getOrdinates().getOrdinatesArray(start);
-			}
-		}
+            int[] elements = sdoGeom.ElemArrayOfInts;
+            ILineString[] lines = new ILineString[sdoGeom.ElemArray.Length/ElementTupleSize];
+            int i = 0;
+            while (i < elements.Length/ElementTupleSize)
+            {
+                ICoordinateSequence cs = null;
+                if (GetElementType(elements,i)==(int)SdoGeometryTypes.ETYPE_COMPOUND.FOURDIGIT)
+                {
+                    int numCompounds =GetNumCompounds(elements,i);
+                    cs = AppendCoordinateSequence(cs, GetCompoundCSeq(i + 1, i + numCompounds, sdoGeom));
+                    ILineString line = _factory.CreateLineString(cs);
+                    lines[i] = line;
+                    i += 1 + numCompounds;
+                }
+                else
+                {
+                    cs = AppendCoordinateSequence(cs, GetElementCoordinateSequence(i, sdoGeom, false));
+                    ILineString line = _factory.CreateLineString(cs);
+                    lines[i] = line;
+                    i++;
+                }
+            }
 
-		private ICoordinateSequence ConvertOrdinateArray(Double[] oordinates,
-														 SdoGeometry sdoGeom)
-		{
-			int dim = sdoGeom.Dimensionality;
-			ICoordinate[] coordinates = new ICoordinate[oordinates.Length / dim];
-			int zDim = sdoGeom.getZDimension() - 1;
-			int lrsDim = sdoGeom.LRS - 1;
-			for (int i = 0; i < coordinates.Length; i++)
-			{
-				if (dim == 2)
-				{
-					coordinates[i] = new Coordinate(
-						oordinates[i * dim],
-						oordinates[i * dim + 1]);
-				}
-				else if (dim == 3)
-				{
-					if (sdoGeom.LRS > 0)
-					{
-						coordinates[i] = MCoordinate.Create2dWithMeasure(
-							oordinates[i * dim], // X
-							oordinates[i * dim + 1], // Y
-							oordinates[i * dim + lrsDim]); // M
-					}
-					else
-					{
-						coordinates[i] = new Coordinate(
-							oordinates[i * dim], // X
-							oordinates[i * dim + 1], // Y
-							oordinates[i * dim + zDim]); // Z
-					}
-				}
-				else if (dim == 4)
-				{
-					// This must be an LRS Geometry
-					if (sdoGeom.LRS == 0)
-						throw new ApplicationException(
-							"4 dimensional Geometries must be LRS geometry");
-					coordinates[i] = MCoordinate.Create3dWithMeasure(
-						oordinates[i * dim], // X
-						oordinates[i * dim + 1], // Y
-						oordinates[i * dim + zDim], // Z
-						oordinates[i * dim + lrsDim]); // M
-				}
-			}
-			return factory.CoordinateSequenceFactory.Create(coordinates);
-		}
+            IMultiLineString mls = _factory.CreateMultiLineString(lines);
+            mls.SRID = (int)sdoGeom.Sdo_Srid;
+            return mls;
+        }
 
-		// reverses ordinates in a coordinate array in-place
-		private ICoordinate[] ReverseRing(ICoordinate[] ar) {
-			for (int i = 0; i < ar.Length / 2; i++) {
-				ICoordinate cs = ar[i];
-				ar[i] = ar[ar.Length - 1 - i];
-				ar[ar.Length - 1 - i] = cs;
-			}
-			return ar;
-		}
+        private IMultiPolygon ReadMultiPolygon(SdoGeometry sdoGeom)
+        {
+            if (sdoGeom.OrdinatesArray.Length == 0)
+                return MultiPolygon.Empty;
+            List<ILinearRing> holes = new List<ILinearRing>();
+            List<IPolygon> polygons = new List<IPolygon>();
+            int[] elements = sdoGeom.ElemArrayOfInts;
+            ILinearRing shell = null;
+            int i = 0;
+            while (i < elements.Length/ElementTupleSize)
+            {
+                ICoordinateSequence coordinateSequence = null;
+                int elementType = GetElementType(elements, i);
+                int numCompounds = 0;
+                if (elementType == (int)SdoGeometryTypes.ETYPE_COMPOUND.POLYGON_EXTERIOR ||
+                    elementType == (int)SdoGeometryTypes.ETYPE_COMPOUND.POLYGON_INTERIOR)
+                {
+                    numCompounds = GetNumCompounds(elements, i);
+                    coordinateSequence = AppendCoordinateSequence(coordinateSequence, GetCompoundCSeq(i + 1, i + numCompounds, sdoGeom));
+                }
+                else
+                {
+                    coordinateSequence = AppendCoordinateSequence(coordinateSequence, GetElementCoordinateSequence(i, sdoGeom, false));
+                }
+                if (elementType == (int)SdoGeometryTypes.ETYPE_COMPOUND.POLYGON_INTERIOR
+                    || elementType == (int)SdoGeometryTypes.ETYPE_SIMPLE.POLYGON_INTERIOR)
+                {
+                    ILinearRing linearRing = _factory.CreateLinearRing(coordinateSequence);
+                    linearRing.SRID = (int)sdoGeom.Sdo_Srid;
+                    holes.Add(linearRing);
+                }
+                else
+                {
+                    if (shell != null)
+                    {
+                        IPolygon polygon = _factory.CreatePolygon(shell, holes.ToArray());
+                        polygon.SRID = (int)sdoGeom.Sdo_Srid;
+                        polygons.Add(polygon);
+                        shell = null;
+                    }
+                    shell = _factory.CreateLinearRing(coordinateSequence);
+                    shell.SRID = (int)sdoGeom.Sdo_Srid;
+                    holes = new List<ILinearRing>();
+                }
+                i += 1 + numCompounds;
+            }
+            if (shell != null)
+            {
+                IPolygon polygon = _factory.CreatePolygon(shell, holes.ToArray());
+                polygon.SRID = (int)sdoGeom.Sdo_Srid;
+                polygons.Add(polygon);
+            }
+            IMultiPolygon multiPolygon = _factory.CreateMultiPolygon(polygons.ToArray());
+            multiPolygon.SRID = (int)sdoGeom.Sdo_Srid;
+            return multiPolygon;
+        }
 
-		/**
-	 * Linearizes arcs and circles.
-	 * 
-	 * @param arcOrdinates
-	 *            arc or circle coordinates
-	 * @param dim
-	 *            coordinate dimension
-	 * @param lrs
-	 *            whether this is an lrs geometry
-	 * @param entireCirlce
-	 *            whether the whole arc should be linearized
-	 * @return linearized interpolation of arcs or circle
-	 */
-		private ICoordinate[] Linearize(Double[] arcOrdinates, int dim, bool lrs,
-		                               bool entireCirlce) {
-			ICoordinate[] linearizedCoords = new ICoordinate[0];
-			// CoordDim is the dimension that includes only non-measure (X,Y,Z)
-			// ordinates in its value
-			int coordDim = lrs ? dim - 1 : dim;
-			// this only works with 2-Dimensional geometries, since we use
-			// JGeometry linearization;
-			if (coordDim != 2)
-				throw new ArgumentException(
-					"Can only linearize 2D arc segments, but geometry is "
-					+ dim + "D.");
-			int numOrd = dim;
-			while (numOrd < arcOrdinates.Length) {
-				numOrd = numOrd - dim;
-				double x1 = arcOrdinates[numOrd++];
-				double y1 = arcOrdinates[numOrd++];
-				double m1 = lrs ? arcOrdinates[numOrd++] : Double.NaN;
-				double x2 = arcOrdinates[numOrd++];
-				double y2 = arcOrdinates[numOrd++];
-				double m2 = lrs ? arcOrdinates[numOrd++] : Double.NaN;
-				double x3 = arcOrdinates[numOrd++];
-				double y3 = arcOrdinates[numOrd++];
-				double m3 = lrs ? arcOrdinates[numOrd++] : Double.NaN;
+        #endregion
 
-				ICoordinate[] coords;
-				if (entireCirlce) {
-					coords = Circle.LinearizeCircle(x1, y1, x2, y2, x3, y3);
-				} else {
-					coords = Circle.LinearizeArc(x1, y1, x2, y2, x3, y3);
-				}
+        private IPoint ReadPoint(SdoGeometry sdoGeom)
+        {
+            if (sdoGeom.OrdinatesArray.Length == 0) 
+                return Point.Empty;
+            double[] ordinates = sdoGeom.OrdinatesArrayOfDoubles;
+            if (ordinates.Length == 0)
+            {
+                if (sdoGeom.Dimensionality == 2)
+                {
+                    ordinates = new[] { (double)sdoGeom.Point.X.Value, (double)sdoGeom.Point.Y.Value };
+                }
+                else
+                {
+                    ordinates = new[] { (double)sdoGeom.Point.X.Value, (double)sdoGeom.Point.Y.Value, (double)sdoGeom.Point.Z.Value };
+                }
+            }
+            ICoordinateSequence cs = ConvertOrdinateArray(ordinates, sdoGeom.Dimensionality);
+            IPoint point = _factory.CreatePoint(cs);
+            point.SRID = (int)sdoGeom.Sdo_Srid;
+            return point;
+        }
 
-				// if this is an LRS geometry, fill the measure values into
-				// the linearized array
-				if (lrs) {
-					ICoordinate[] mcoord = new ICoordinate[coords.Length];
-					int lastIndex = coords.Length - 1;
-					mcoord[0] = MCoordinate.Create2dWithMeasure(x1, y1, m1);
-					mcoord[lastIndex] = MCoordinate.Create2dWithMeasure(x3, y3, m3);
-					// convert the middle coordinates to MCoordinate
-					for (int i = 1; i < lastIndex; i++) {
-						mcoord[i] = MCoordinate.ConvertCoordinate(coords[i]);
-						// if we happen to split on the middle measure, then
-						// assign it
-						if (mcoord[i].X == x2
-						    && mcoord[i].Y == y2) {
-						    	((MCoordinate)mcoord[i]).M = m2;
-						    }
-					}
-					coords = mcoord;
-				}
+        private ILineString ReadLine(SdoGeometry sdoGeom)
+        {
+            if (sdoGeom.OrdinatesArray.Length == 0)
+                return LineString.Empty;
+            int[] elements = sdoGeom.ElemArrayOfInts;
+            ICoordinateSequence cs = null;
 
-				// if this is not the first arcsegment, the first linearized
-				// point is already in linearizedArc, so disregard this.
-				int resultBegin = 1;
-				if (linearizedCoords.Length == 0)
-					resultBegin = 0;
+            int i = 0;
+            while (i < elements.Length / ElementTupleSize)
+            {
 
-				int destPos = linearizedCoords.Length;
-				ICoordinate[] tmpCoords = new Coordinate[linearizedCoords.Length
-				                                        + coords.Length - resultBegin];
-				Array.Copy(linearizedCoords, 0, tmpCoords, 0, linearizedCoords.Length);
-				Array.Copy(coords, resultBegin, tmpCoords, destPos, coords.Length - resultBegin);
+                if (GetElementType(elements, i) == (int)SdoGeometryTypes.ETYPE_COMPOUND.FOURDIGIT)
+                {
+                    throw new NotImplementedException("NhibernateSpatial does not support compound Lines");
+                }
+                else
+                {
+                    cs = AppendCoordinateSequence(cs, GetElementCoordinateSequence(i, sdoGeom, false));
+                    i++;
+                }
+            }
+            ILineString ls = _factory.CreateLineString(cs);
+            ls.SRID = (int)sdoGeom.Sdo_Srid;
+            return ls;
+        }
 
-				linearizedCoords = tmpCoords;
-			}
-			return linearizedCoords;
-		                               }
+        private int GetNumCompounds(int[] info, int i)
+        {
+            return info[i * 3 + 2];
+        }
 
-		//public int[] sqlTypes() {
-		//    return geometryTypes;
-		//}
+        private int GetElementType(int[] info, int i)
+        {
+            return info[i * 3 + 1];
 
-		//public static String arrayToString(Object array) {
-		//    if (array == null || Array.getLength(array) == 0) {
-		//        return "()";
-		//    }
-		//    int length = Array.getLength(array);
-		//    StringBuilder stb = new StringBuilder();
-		//    stb.Append("(").Append(Array.get(array, 0));
-		//    for (int i = 1; i < length; i++) {
-		//        stb.Append(",").Append(Array.get(array, i));
-		//    }
-		//    stb.Append(")");
-		//    return stb.ToString();
-		//}
+        }
 
-	}
+        private IGeometry ReadPolygon(SdoGeometry sdoGeom)
+        {
+            if (sdoGeom.OrdinatesArray.Length == 0)
+                return Polygon.Empty;
+            ILinearRing shell = null;
+            ILinearRing[] holes = new LinearRing[sdoGeom.NumElements - 1];
+            int[] info = sdoGeom.ElemArrayOfInts;
+            int i = 0;
+            int idxInteriorRings = 0;
+            while (i < info.Length / ElementTupleSize)
+            {
+                ICoordinateSequence coordinates = null;
+                int numCompounds = 0;
+                int elementType = GetElementType(info, i);
+                if (elementType == (int)SdoGeometryTypes.ETYPE_COMPOUND.POLYGON_EXTERIOR ||
+                    elementType == (int)SdoGeometryTypes.ETYPE_COMPOUND.POLYGON_INTERIOR)
+                {
+                    numCompounds = GetNumCompounds(info, i);
+                    coordinates = AppendCoordinateSequence(coordinates, GetCompoundCSeq(i + 1, i + numCompounds, sdoGeom));
+                }
+                else
+                {
+                    coordinates = AppendCoordinateSequence(coordinates, GetElementCoordinateSequence(i, sdoGeom, false));
+                }
+                if (elementType == (int)SdoGeometryTypes.ETYPE_SIMPLE.POLYGON_INTERIOR ||
+                    elementType == (int)SdoGeometryTypes.ETYPE_COMPOUND.POLYGON_INTERIOR)
+                {
+                    holes[idxInteriorRings] = _factory.CreateLinearRing(coordinates);
+                    holes[idxInteriorRings].SRID = (int)sdoGeom.Sdo_Srid;
+                    idxInteriorRings++;
+                }
+                else
+                {
+                    shell = _factory.CreateLinearRing(coordinates);
+                    shell.SRID = (int)sdoGeom.Sdo_Srid;
+                }
+                i += 1 + numCompounds;
+            }
+            IPolygon polygon = _factory.CreatePolygon(shell, holes);
+            polygon.SRID = (int)sdoGeom.Sdo_Srid;
+            return polygon;
+        }
+
+        /**
+         * Gets the ICoordinateSequence corresponding to a compound element.
+         * 
+         * @param idxFirst
+         *            the first sub-element of the compound element
+         * @param idxLast
+         *            the last sub-element of the compound element
+         * @param sdoGeom
+         *            the SdoGeometry that holds the compound element.
+         * @return
+         */
+        private ICoordinateSequence GetCompoundCSeq(int idxFirst, int idxLast,
+                                                    SdoGeometry sdoGeom)
+        {
+            ICoordinateSequence cs = null;
+            for (int i = idxFirst; i <= idxLast; i++)
+            {
+                // pop off the last element as it is added with the next
+                // coordinate sequence
+                if (cs != null && cs.Count > 0)
+                {
+                    ICoordinate[] coordinates = cs.ToCoordinateArray();
+                    ICoordinate[] newCoordinates = new ICoordinate[coordinates.Length - 1];
+                    Array.Copy(coordinates, 0, newCoordinates, 0, coordinates.Length - 1);
+                    cs = _factory.CoordinateSequenceFactory.Create(newCoordinates);
+                }
+                cs = AppendCoordinateSequence(cs, GetElementCoordinateSequence(i, sdoGeom, (i < idxLast)));
+            }
+            return cs;
+        }
+
+
+        /// <summary>
+        /// Get coordinate sequence of an element
+        /// </summary>
+        /// <param name="i"></param>
+        /// <param name="sdoGeom"></param>
+        /// <param name="hasNextSE"></param>
+        /// <returns></returns>
+        private ICoordinateSequence GetElementCoordinateSequence(int i, SdoGeometry sdoGeom, bool hasNextSE)
+        {
+            int type = sdoGeom.ElemArrayOfInts[i * ElementTupleSize + 1];
+            int interpretation = sdoGeom.ElemArrayOfInts[i * ElementTupleSize + 2];
+            Double[] elemOrdinates = ExtractOrdinatesOfElement(i, sdoGeom, hasNextSE);
+
+            ICoordinateSequence cs;
+
+            if (interpretation ==1)
+            {
+                cs = ConvertOrdinateArray(elemOrdinates, sdoGeom.Dimensionality);
+            }
+            else if (interpretation == 2 || interpretation == 4)
+            {
+                throw new NotImplementedException("Arc segment elements are not supported");
+            }
+            else if (interpretation == 3)
+            {
+                throw new NotImplementedException("Rectancle elements are not supported, use polygon to define the rectangle");
+            }
+            else
+            {
+                throw new ApplicationException(String.Format("Unsupportes element interpretation {0} in compound type{1}",interpretation,type));
+            }
+            return cs;
+        }
+
+        private ICoordinateSequence AppendCoordinateSequence(ICoordinateSequence seq1,
+                                        ICoordinateSequence seq2)
+        {
+            if (seq1 == null)
+            {
+                return seq2;
+            }
+            if (seq2 == null)
+            {
+                return seq1;
+            }
+            ICoordinate[] c1 = seq1.ToCoordinateArray();
+            ICoordinate[] c2 = seq2.ToCoordinateArray();
+            ICoordinate[] c3 = new Coordinate[c1.Length + c2.Length];
+            Array.Copy(c1, 0, c3, 0, c1.Length);
+            Array.Copy(c2, 0, c3, c1.Length, c2.Length);
+            return _factory.CoordinateSequenceFactory.Create(c3);
+        }
+
+        private Double[] ExtractOrdinatesOfElement(int elementIndex, SdoGeometry sdoGeom, bool hasNextSE)
+        {
+            int start = (int)sdoGeom.ElemArray[elementIndex * 3];
+            if (((elementIndex + 1) * 3) < sdoGeom.ElemArray.Length - 1)
+            {
+                int end = (int)sdoGeom.ElemArray[(elementIndex + 1) * 3];
+                // if this is a subelement of a compound geometry,
+                // the last point is the first point of
+                // the next subelement.
+                if (hasNextSE)
+                {
+                    end += sdoGeom.Dimensionality;
+                }
+                return SubArray(sdoGeom.OrdinatesArrayOfDoubles, start - 1, end - start);
+            }
+            else
+            {
+                return SubArray(sdoGeom.OrdinatesArrayOfDoubles, start-1, sdoGeom.OrdinatesArrayOfDoubles.Length - start+1);
+            }
+        }
+
+        public static T[] SubArray<T>(T[] data, int index, int length)
+        {
+         
+                T[] result = new T[length];
+                Array.Copy(data, index, result, 0, length);
+                return result;
+           
+        }
+
+
+        private ICoordinateSequence ConvertOrdinateArray(Double[] oordinates,
+                                                         int dimension)
+        {
+
+            ICoordinate[] coordinates = new ICoordinate[oordinates.Length / dimension];
+
+            for (int i = 0; i < coordinates.Length; i++)
+            {
+                if (dimension == 2)
+                {
+                    coordinates[i] = new Coordinate(
+                        oordinates[i * dimension],
+                        oordinates[i * dimension + 1]);
+                }
+                else
+                {
+                    coordinates[i] = new Coordinate(
+                        oordinates[i * dimension],
+                        oordinates[i * dimension + 1],
+                        oordinates[i * dimension + 2]);
+                }
+            }
+
+            return _factory.CoordinateSequenceFactory.Create(coordinates);
+        }
+
+        // reverses ordinates in a coordinate array in-place
+        private ICoordinate[] ReverseRing(ICoordinate[] ar)
+        {
+            for (int i = 0; i < ar.Length / 2; i++)
+            {
+                ICoordinate cs = ar[i];
+                ar[i] = ar[ar.Length - 1 - i];
+                ar[ar.Length - 1 - i] = cs;
+            }
+            return ar;
+        }
+    }
 }
